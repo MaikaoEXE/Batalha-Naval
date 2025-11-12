@@ -1,0 +1,229 @@
+#include <stdio.h>
+#include <stdlib.h> // Para a função abs()
+
+// --- Constantes do Tabuleiro ---
+#define TAM_TABULEIRO 10
+#define AGUA 0
+#define NAVIO 3
+
+// --- Constantes da Habilidade ---
+#define TAM_HABILIDADE 5 // Usando 5x5 como sugerido
+#define AFETADO 5        // Valor para área de efeito
+
+// Matrizes
+int tabuleiro[TAM_TABULEIRO][TAM_TABULEIRO];
+int hab_cone[TAM_HABILIDADE][TAM_HABILIDADE];
+int hab_cruz[TAM_HABILIDADE][TAM_HABILIDADE];
+int hab_octaedro[TAM_HABILIDADE][TAM_HABILIDADE];
+
+/**
+ * @brief Preenche o tabuleiro com água e alguns navios de exemplo.
+ */
+void inicializar_tabuleiro() {
+    for (int i = 0; i < TAM_TABULEIRO; i++) {
+        for (int j = 0; j < TAM_TABULEIRO; j++) {
+            // Coloca alguns navios para visualização
+            if ((i == 2 && j > 1 && j < 6) || // Um navio horizontal
+                (i > 4 && i < 8 && j == 8) || // Um navio vertical
+                (i == 7 && j == 2)) {          // Um navio pequeno
+                tabuleiro[i][j] = NAVIO;
+            } else {
+                tabuleiro[i][j] = AGUA;
+            }
+        }
+    }
+}
+
+/**
+ * @brief Exibe o estado atual do tabuleiro no console.
+ */
+void exibir_tabuleiro() {
+    printf("\n   ");
+    // Imprime cabeçalho das colunas
+    for (int j = 0; j < TAM_TABULEIRO; j++) {
+        printf("%d ", j);
+    }
+    printf("\n  +--------------------\n");
+
+    for (int i = 0; i < TAM_TABULEIRO; i++) {
+        printf("%d | ", i); // Imprime cabeçalho da linha
+        for (int j = 0; j < TAM_TABULEIRO; j++) {
+            switch (tabuleiro[i][j]) {
+                case AGUA:
+                    printf("~ "); // Água
+                    break;
+                case NAVIO:
+                    printf("N "); // Navio
+                    break;
+                case AFETADO:
+                    printf("* "); // Área de Habilidade Afetada
+                    break;
+                default:
+                    printf("? ");
+            }
+        }
+        printf("|\n");
+    }
+    printf("  +--------------------\n");
+}
+
+/**
+ * @brief (Opcional) Exibe a matriz de habilidade (1s e 0s).
+ */
+void exibir_matriz_habilidade(int hab[TAM_HABILIDADE][TAM_HABILIDADE]) {
+    printf("Matriz de Habilidade (%dx%d):\n", TAM_HABILIDADE, TAM_HABILIDADE);
+    for (int i = 0; i < TAM_HABILIDADE; i++) {
+        printf("  ");
+        for (int j = 0; j < TAM_HABILIDADE; j++) {
+            printf("%d ", hab[i][j]);
+        }
+        printf("\n");
+    }
+}
+
+// --- Funções de Criação de Habilidades (Dinâmicas) ---
+
+/**
+ * @brief Cria a matriz de habilidade em forma de Cone.
+ * O cone começa no "topo" (linha 0) da matriz e se expande para baixo.
+ */
+
+void criar_cone() {
+    int centro = TAM_HABILIDADE / 2; // Centro (coluna 2 para 5x5)
+    for (int i = 0; i < TAM_HABILIDADE; i++) {
+        for (int j = 0; j < TAM_HABILIDADE; j++) {
+            // A largura do cone na linha 'i' é 'i' para cada lado do centro
+            if (j >= centro - i && j <= centro + i) {
+                hab_cone[i][j] = 1;
+            } else {
+                hab_cone[i][j] = 0;
+            }
+        }
+    }
+}
+
+/**
+ * @brief Cria a matriz de habilidade em forma de Cruz.
+ * A cruz é formada pela linha central e coluna central.
+ */
+
+void criar_cruz() {
+    int centro = TAM_HABILIDADE / 2; // Centro (linha/coluna 2 para 5x5)
+    for (int i = 0; i < TAM_HABILIDADE; i++) {
+        for (int j = 0; j < TAM_HABILIDADE; j++) {
+            // Se estiver na linha central OU na coluna central
+            if (i == centro || j == centro) {
+                hab_cruz[i][j] = 1;
+            } else {
+                hab_cruz[i][j] = 0;
+            }
+        }
+    }
+}
+
+/**
+ * @brief Cria a matriz de habilidade em forma de Octaedro (Losango/Diamante).
+ * Usa a "distância de Manhattan" do centro.
+ */
+
+void criar_octaedro() {
+    int centro = TAM_HABILIDADE / 2; // Centro (2, 2 para 5x5)
+    for (int i = 0; i < TAM_HABILIDADE; i++) {
+        for (int j = 0; j < TAM_HABILIDADE; j++) {
+            // Distância de Manhattan: |x1-x2| + |y1-y2|
+            int dist = abs(i - centro) + abs(j - centro);
+            
+            // Se a distância do centro for menor ou igual ao "raio" (centro)
+            if (dist <= centro) {
+                hab_octaedro[i][j] = 1;
+            } else {
+                hab_octaedro[i][j] = 0;
+            }
+        }
+    }
+}
+
+// --- Lógica Principal de Aplicação ---
+
+/**
+ * @brief Sobrepõe a matriz de habilidade no tabuleiro principal.
+ * @param hab Matriz de habilidade (cone, cruz, etc.)
+ * @param origem_linha Linha do tabuleiro para o *centro* da habilidade.
+ * @param origem_col Coluna do tabuleiro para o *centro* da habilidade.
+ */
+void aplicar_habilidade(int hab[TAM_HABILIDADE][TAM_HABILIDADE], int origem_linha, int origem_col) {
+    int centro_hab = TAM_HABILIDADE / 2; // Centro da matriz de habilidade (ex: 2)
+
+    // Itera pela matriz de habilidade (5x5)
+    for (int i = 0; i < TAM_HABILIDADE; i++) {
+        for (int j = 0; j < TAM_HABILIDADE; j++) {
+            
+            // 1. Verifica se a habilidade afeta esta parte (valor 1)
+            if (hab[i][j] == 1) {
+                
+                // 2. Calcula o deslocamento (offset) do centro da habilidade
+                int offset_i = i - centro_hab; // Pode ser -2, -1, 0, 1, 2
+                int offset_j = j - centro_hab;
+
+                // 3. Calcula a coordenada correspondente no tabuleiro
+                int tab_i = origem_linha + offset_i;
+                int tab_j = origem_col + offset_j;
+
+                // 4. VERIFICAÇÃO DE LIMITES (Crucial!)
+                // Garante que a coordenada calculada está DENTRO do tabuleiro 10x10
+                if (tab_i >= 0 && tab_i < TAM_TABULEIRO && tab_j >= 0 && tab_j < TAM_TABULEIRO) {
+                    
+                    // 5. Aplica o efeito no tabuleiro
+                    // (Não importa o que estava lá antes, vira "AFETADO")
+                    tabuleiro[tab_i][tab_j] = AFETADO;
+                }
+            }
+        }
+    }
+}
+
+
+// --- Função Principal (main) ---
+int main() {
+    // 1. Gera as formas das habilidades
+    criar_cone();
+    criar_cruz();
+    criar_octaedro();
+
+    // --- Demonstração Habilidade CONE ---
+    printf("==================================\n");
+    printf("  HABILIDADE: CONE (em L:3, C:4)\n");
+    printf("==================================\n");
+    // (Opcional) Exibe a matriz da habilidade
+    // exibir_matriz_habilidade(hab_cone);
+    
+    inicializar_tabuleiro(); // Reseta o tabuleiro
+    aplicar_habilidade(hab_cone, 3, 4); // Aplica o cone centrado em (3, 4)
+    exibir_tabuleiro();
+    printf("\n\n");
+
+    // --- Demonstração Habilidade CRUZ ---
+    printf("==================================\n");
+    printf("  HABILIDADE: CRUZ (em L:7, C:7)\n");
+    printf("==================================\n");
+    // (Opcional) Exibe a matriz da habilidade
+    // exibir_matriz_habilidade(hab_cruz);
+    
+    inicializar_tabuleiro(); // Reseta o tabuleiro
+    aplicar_habilidade(hab_cruz, 7, 7); // Aplica a cruz centrada em (7, 7)
+    exibir_tabuleiro();
+    printf("\n\n");
+
+    // --- Demonstração Habilidade OCTAEDRO ---
+    printf("==================================\n");
+    printf("  HABILIDADE: OCTAEDRO (em L:4, C:8)\n");
+    printf("==================================\n");
+    // (Opcional) Exibe a matriz da habilidade
+    // exibir_matriz_habilidade(hab_octaedro);
+    
+    inicializar_tabuleiro(); // Reseta o tabuleiro
+    aplicar_habilidade(hab_octaedro, 4, 8); // Aplica o octaedro centrado em (4, 8)
+    exibir_tabuleiro();
+    
+    return 0;
+}
